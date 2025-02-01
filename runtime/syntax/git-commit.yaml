@@ -22,7 +22,6 @@ rules:
     - comment.line:
         start: "^#"
         end: "$"
-        rules: []
 
     # Diffs (i.e. git commit --verbose)
     - default:
@@ -31,6 +30,5 @@ rules:
         # should never match valid diff output and extend highlighting to the
         # end of the file
         end: "^ENDOFFILE"
-        limit-group: "magenta"
         rules:
             - include: "patch"

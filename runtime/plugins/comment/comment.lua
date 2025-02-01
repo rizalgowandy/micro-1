@@ -7,7 +7,7 @@ local buffer = import("micro/buffer")
 local ft = {}
 
 ft["apacheconf"] = "# %s"
-ft["bat"] = ":: %s"
+ft["batch"] = ":: %s"
 ft["c"] = "// %s"
 ft["c++"] = "// %s"
 ft["cmake"] = "# %s"
@@ -28,6 +28,7 @@ ft["ini"] = "; %s"
 ft["java"] = "// %s"
 ft["javascript"] = "// %s"
 ft["jinja2"] = "{# %s #}"
+ft["json"] = "// %s"
 ft["julia"] = "# %s"
 ft["kotlin"] = "// %s"
 ft["lua"] = "-- %s"
@@ -60,11 +61,17 @@ ft["zig"] = "// %s"
 ft["zscript"] = "// %s"
 ft["zsh"] = "# %s"
 
+local last_ft
+
 function updateCommentType(buf)
-    if ft[buf.Settings["filetype"]] ~= nil and ft[buf.Settings["filetype"]] ~= nil then
-        buf.Settings["commenttype"] = ft[buf.Settings["filetype"]]
-    elseif buf.Settings["commenttype"] == nil then
-        buf.Settings["commenttype"] = "# %s"
+    if buf.Settings["commenttype"] == nil or (last_ft ~= buf.Settings["filetype"] and last_ft ~= nil) then
+        if ft[buf.Settings["filetype"]] ~= nil then
+            buf:SetOptionNative("commenttype", ft[buf.Settings["filetype"]])
+        else
+            buf:SetOptionNative("commenttype", "# %s")
+        end
+
+        last_ft = buf.Settings["filetype"]
     end
 end
 
@@ -100,7 +107,7 @@ function commentLine(bp, lineN, indentLen)
         bp.Cursor.Y = curpos.Y
     end
     bp.Cursor:Relocate()
-    bp.Cursor.LastVisualX = bp.Cursor:GetVisualX()
+    bp.Cursor:StoreVisualX()
 end
 
 function uncommentLine(bp, lineN, commentRegex)
@@ -128,7 +135,7 @@ function uncommentLine(bp, lineN, commentRegex)
         end
     end
     bp.Cursor:Relocate()
-    bp.Cursor.LastVisualX = bp.Cursor:GetVisualX()
+    bp.Cursor:StoreVisualX()
 end
 
 function toggleCommentLine(bp, lineN, commentRegex)

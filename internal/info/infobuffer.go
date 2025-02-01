@@ -7,7 +7,7 @@ import (
 )
 
 // The InfoBuf displays messages and other info at the bottom of the screen.
-// It is respresented as a buffer and a message with a style.
+// It is represented as a buffer and a message with a style.
 type InfoBuf struct {
 	*buffer.Buffer
 
@@ -25,6 +25,10 @@ type InfoBuf struct {
 	// It's a map of history type -> history array
 	History    map[string][]string
 	HistoryNum int
+	// HistorySearch indicates whether we are searching for history items
+	// beginning with HistorySearchPrefix
+	HistorySearch       bool
+	HistorySearchPrefix string
 
 	// Is the current message a message from the gutter
 	HasGutter bool
@@ -102,6 +106,7 @@ func (i *InfoBuf) Prompt(prompt string, msg string, ptype string, eventcb func(s
 		i.History[ptype] = append(i.History[ptype], "")
 	}
 	i.HistoryNum = len(i.History[ptype]) - 1
+	i.HistorySearch = false
 
 	i.PromptType = ptype
 	i.Msg = prompt
@@ -138,13 +143,12 @@ func (i *InfoBuf) DonePrompt(canceled bool) {
 		if i.PromptCallback != nil {
 			if canceled {
 				i.Replace(i.Start(), i.End(), "")
-				i.PromptCallback("", true)
 				h := i.History[i.PromptType]
 				i.History[i.PromptType] = h[:len(h)-1]
+				i.PromptCallback("", true)
 			} else {
 				resp := string(i.LineBytes(0))
 				i.Replace(i.Start(), i.End(), "")
-				i.PromptCallback(resp, false)
 				h := i.History[i.PromptType]
 				h[len(h)-1] = resp
 
@@ -155,6 +159,8 @@ func (i *InfoBuf) DonePrompt(canceled bool) {
 						break
 					}
 				}
+
+				i.PromptCallback(resp, false)
 			}
 			// i.PromptCallback = nil
 		}

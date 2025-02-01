@@ -8,7 +8,7 @@ import (
 	"github.com/zyedidia/micro/v2/internal/display"
 	"github.com/zyedidia/micro/v2/internal/info"
 	"github.com/zyedidia/micro/v2/internal/util"
-	"github.com/zyedidia/tcell/v2"
+	"github.com/micro-editor/tcell/v2"
 )
 
 type InfoKeyAction func(*InfoPane)
@@ -83,22 +83,22 @@ func (h *InfoPane) Close() {
 
 func (h *InfoPane) HandleEvent(event tcell.Event) {
 	switch e := event.(type) {
+	case *tcell.EventResize:
+		// TODO
 	case *tcell.EventKey:
-		ke := KeyEvent{
-			code: e.Key(),
-			mod:  metaToAlt(e.Modifiers()),
-			r:    e.Rune(),
-		}
+		ke := keyEvent(e)
 
 		done := h.DoKeyEvent(ke)
 		hasYN := h.HasYN
 		if e.Key() == tcell.KeyRune && hasYN {
-			if (e.Rune() == 'y' || e.Rune() == 'Y') && hasYN {
-				h.YNResp = true
+			y := e.Rune() == 'y' || e.Rune() == 'Y'
+			n := e.Rune() == 'n' || e.Rune() == 'N'
+			if y || n {
+				h.YNResp = y
 				h.DonePrompt(false)
-			} else if (e.Rune() == 'n' || e.Rune() == 'N') && hasYN {
-				h.YNResp = false
-				h.DonePrompt(false)
+
+				InfoBindings.ResetEvents()
+				InfoBufBindings.ResetEvents()
 			}
 		}
 		if e.Key() == tcell.KeyRune && !done && !hasYN {
@@ -108,7 +108,11 @@ func (h *InfoPane) HandleEvent(event tcell.Event) {
 		if done && h.HasPrompt && !hasYN {
 			resp := string(h.LineBytes(0))
 			hist := h.History[h.PromptType]
-			hist[h.HistoryNum] = resp
+			if resp != hist[h.HistoryNum] {
+				h.HistoryNum = len(hist) - 1
+				hist[h.HistoryNum] = resp
+				h.HistorySearch = false
+			}
 			if h.EventCallback != nil {
 				h.EventCallback(resp)
 			}
@@ -118,7 +122,10 @@ func (h *InfoPane) HandleEvent(event tcell.Event) {
 	}
 }
 
-// DoKeyEvent executes a key event for the command bar, doing any overridden actions
+// DoKeyEvent executes a key event for the command bar, doing any overridden actions.
+// Returns true if the action was executed OR if there are more keys remaining
+// to process before executing an action (if this is a key sequence event).
+// Returns false if no action found.
 func (h *InfoPane) DoKeyEvent(e KeyEvent) bool {
 	action, more := InfoBindings.NextEvent(e, nil)
 	if action != nil && !more {
@@ -132,11 +139,25 @@ func (h *InfoPane) DoKeyEvent(e KeyEvent) bool {
 	}
 
 	if !more {
+		// If no infopane action found, try to find a bufpane action.
+		//
+		// TODO: this is buggy. For example, if the command bar has the following
+		// two bindings:
+		//
+		//   "<Ctrl-x><Ctrl-p>": "HistoryUp",
+		//   "<Ctrl-x><Ctrl-v>": "Paste",
+		//
+		// the 2nd binding (with a bufpane action) doesn't work, since <Ctrl-x>
+		// has been already consumed by the 1st binding (with an infopane action).
+		//
+		// We should either iterate both InfoBindings and InfoBufBindings keytrees
+		// together, or just use the same keytree for both infopane and bufpane
+		// bindings.
 		action, more = InfoBufBindings.NextEvent(e, nil)
 		if action != nil && !more {
-			done := action(h.BufPane)
+			action(h.BufPane)
 			InfoBufBindings.ResetEvents()
-			return done
+			return true
 		} else if action == nil && !more {
 			InfoBufBindings.ResetEvents()
 		}
@@ -153,6 +174,18 @@ func (h *InfoPane) HistoryUp() {
 // HistoryDown cycles history down
 func (h *InfoPane) HistoryDown() {
 	h.DownHistory(h.History[h.PromptType])
+}
+
+// HistorySearchUp fetches the previous history item beginning with the text
+// in the infobuffer before cursor
+func (h *InfoPane) HistorySearchUp() {
+	h.SearchUpHistory(h.History[h.PromptType])
+}
+
+// HistorySearchDown fetches the next history item beginning with the text
+// in the infobuffer before cursor
+func (h *InfoPane) HistorySearchDown() {
+	h.SearchDownHistory(h.History[h.PromptType])
 }
 
 // Autocomplete begins autocompletion
@@ -198,9 +231,11 @@ func (h *InfoPane) AbortCommand() {
 
 // InfoKeyActions contains the list of all possible key actions the infopane could execute
 var InfoKeyActions = map[string]InfoKeyAction{
-	"HistoryUp":       (*InfoPane).HistoryUp,
-	"HistoryDown":     (*InfoPane).HistoryDown,
-	"CommandComplete": (*InfoPane).CommandComplete,
-	"ExecuteCommand":  (*InfoPane).ExecuteCommand,
-	"AbortCommand":    (*InfoPane).AbortCommand,
+	"HistoryUp":         (*InfoPane).HistoryUp,
+	"HistoryDown":       (*InfoPane).HistoryDown,
+	"HistorySearchUp":   (*InfoPane).HistorySearchUp,
+	"HistorySearchDown": (*InfoPane).HistorySearchDown,
+	"CommandComplete":   (*InfoPane).CommandComplete,
+	"ExecuteCommand":    (*InfoPane).ExecuteCommand,
+	"AbortCommand":      (*InfoPane).AbortCommand,
 }
