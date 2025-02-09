@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -22,17 +23,13 @@ import (
 	"github.com/zyedidia/micro/v2/internal/buffer"
 	"github.com/zyedidia/micro/v2/internal/clipboard"
 	"github.com/zyedidia/micro/v2/internal/config"
-	ulua "github.com/zyedidia/micro/v2/internal/lua"
 	"github.com/zyedidia/micro/v2/internal/screen"
 	"github.com/zyedidia/micro/v2/internal/shell"
 	"github.com/zyedidia/micro/v2/internal/util"
-	"github.com/zyedidia/tcell/v2"
+	"github.com/micro-editor/tcell/v2"
 )
 
 var (
-	// Event channel
-	autosave chan bool
-
 	// Command line flags
 	flagVersion   = flag.Bool("version", false, "Show the version number and information")
 	flagConfigDir = flag.String("config-dir", "", "Specify a custom location for the configuration directory")
@@ -43,8 +40,9 @@ var (
 	flagClean     = flag.Bool("clean", false, "Clean configuration directory")
 	optionFlags   map[string]*string
 
-	sigterm chan os.Signal
-	sighup  chan os.Signal
+	sighup chan os.Signal
+
+	timerChan chan func()
 )
 
 func InitFlags() {
@@ -67,7 +65,7 @@ func InitFlags() {
 		fmt.Println("-version")
 		fmt.Println("    \tShow the version number and information")
 
-		fmt.Print("\nMicro's plugin's can be managed at the command line with the following commands.\n")
+		fmt.Print("\nMicro's plugins can be managed at the command line with the following commands.\n")
 		fmt.Println("-plugin install [PLUGIN]...")
 		fmt.Println("    \tInstall plugin(s)")
 		fmt.Println("-plugin remove [PLUGIN]...")
@@ -255,7 +253,9 @@ func main() {
 		screen.TermMessage(err)
 	}
 
-	config.InitRuntimeFiles()
+	config.InitRuntimeFiles(true)
+	config.InitPlugins()
+
 	err = config.ReadSettings()
 	if err != nil {
 		screen.TermMessage(err)
@@ -273,7 +273,12 @@ func main() {
 				screen.TermMessage(err)
 				continue
 			}
+			if err = config.OptionIsValid(k, nativeValue); err != nil {
+				screen.TermMessage(err)
+				continue
+			}
 			config.GlobalSettings[k] = nativeValue
+			config.VolatileSettings[k] = true
 		}
 	}
 
@@ -351,17 +356,19 @@ func main() {
 		log.Println(clipErr, " or change 'clipboard' option")
 	}
 
+	config.StartAutoSave()
 	if a := config.GetGlobalOption("autosave").(float64); a > 0 {
-		config.SetAutoTime(int(a))
-		config.StartAutoSave()
+		config.SetAutoTime(a)
 	}
 
 	screen.Events = make(chan tcell.Event)
 
-	sigterm = make(chan os.Signal, 1)
+	util.Sigterm = make(chan os.Signal, 1)
 	sighup = make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	signal.Notify(util.Sigterm, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGABRT)
 	signal.Notify(sighup, syscall.SIGHUP)
+
+	timerChan = make(chan func())
 
 	// Here is the event loop which runs in a separate thread
 	go func() {
@@ -413,21 +420,20 @@ func DoEvent() {
 	select {
 	case f := <-shell.Jobs:
 		// If a new job has finished while running in the background we should execute the callback
-		ulua.Lock.Lock()
 		f.Function(f.Output, f.Args)
-		ulua.Lock.Unlock()
 	case <-config.Autosave:
-		ulua.Lock.Lock()
 		for _, b := range buffer.OpenBuffers {
-			b.Save()
+			b.AutoSave()
 		}
-		ulua.Lock.Unlock()
 	case <-shell.CloseTerms:
+		action.Tabs.CloseTerms()
 	case event = <-screen.Events:
 	case <-screen.DrawChan():
 		for len(screen.DrawChan()) > 0 {
 			<-screen.DrawChan()
 		}
+	case f := <-timerChan:
+		f()
 	case <-sighup:
 		for _, b := range buffer.OpenBuffers {
 			if !b.Modified() {
@@ -435,7 +441,7 @@ func DoEvent() {
 			}
 		}
 		os.Exit(0)
-	case <-sigterm:
+	case <-util.Sigterm:
 		for _, b := range buffer.OpenBuffers {
 			if !b.Modified() {
 				b.Fini()
@@ -448,13 +454,39 @@ func DoEvent() {
 		os.Exit(0)
 	}
 
-	ulua.Lock.Lock()
-	// if event != nil {
-	if action.InfoBar.HasPrompt {
-		action.InfoBar.HandleEvent(event)
-	} else {
-		action.Tabs.HandleEvent(event)
+	if e, ok := event.(*tcell.EventError); ok {
+		log.Println("tcell event error: ", e.Error())
+
+		if e.Err() == io.EOF {
+			// shutdown due to terminal closing/becoming inaccessible
+			for _, b := range buffer.OpenBuffers {
+				if !b.Modified() {
+					b.Fini()
+				}
+			}
+
+			if screen.Screen != nil {
+				screen.Screen.Fini()
+			}
+			os.Exit(0)
+		}
+		return
 	}
-	// }
-	ulua.Lock.Unlock()
+
+	if event != nil {
+		_, resize := event.(*tcell.EventResize)
+		if resize {
+			action.InfoBar.HandleEvent(event)
+			action.Tabs.HandleEvent(event)
+		} else if action.InfoBar.HasPrompt {
+			action.InfoBar.HandleEvent(event)
+		} else {
+			action.Tabs.HandleEvent(event)
+		}
+	}
+
+	err := config.RunPluginFn("onAnyEvent")
+	if err != nil {
+		screen.TermMessage(err)
+	}
 }

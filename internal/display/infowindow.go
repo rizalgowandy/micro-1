@@ -7,7 +7,7 @@ import (
 	"github.com/zyedidia/micro/v2/internal/info"
 	"github.com/zyedidia/micro/v2/internal/screen"
 	"github.com/zyedidia/micro/v2/internal/util"
-	"github.com/zyedidia/tcell/v2"
+	"github.com/micro-editor/tcell/v2"
 )
 
 type InfoWindow struct {
@@ -260,7 +260,9 @@ func (i *InfoWindow) Display() {
 		done := false
 
 		statusLineStyle := config.DefStyle.Reverse(true)
-		if style, ok := config.Colorscheme["statusline"]; ok {
+		if style, ok := config.Colorscheme["statusline.suggestions"]; ok {
+			statusLineStyle = style
+		} else if style, ok := config.Colorscheme["statusline"]; ok {
 			statusLineStyle = style
 		}
 		keymenuOffset := 0

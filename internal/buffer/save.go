@@ -31,6 +31,7 @@ func overwriteFile(name string, enc encoding.Encoding, fn func(io.Writer) error,
 	var writeCloser io.WriteCloser
 	var screenb bool
 	var cmd *exec.Cmd
+	var c chan os.Signal
 
 	if withSudo {
 		cmd = exec.Command(config.GlobalSettings["sucmd"].(string), "dd", "bs=4k", "of="+name)
@@ -39,39 +40,55 @@ func overwriteFile(name string, enc encoding.Encoding, fn func(io.Writer) error,
 			return
 		}
 
-		c := make(chan os.Signal, 1)
+		c = make(chan os.Signal, 1)
+		signal.Reset(os.Interrupt)
 		signal.Notify(c, os.Interrupt)
-		go func() {
-			<-c
-			cmd.Process.Kill()
-		}()
 
 		screenb = screen.TempFini()
 		// need to start the process now, otherwise when we flush the file
 		// contents to its stdin it might hang because the kernel's pipe size
 		// is too small to handle the full file contents all at once
-		if e := cmd.Start(); e != nil && err == nil {
-			return err
+		if err = cmd.Start(); err != nil {
+			screen.TempStart(screenb)
+
+			signal.Notify(util.Sigterm, os.Interrupt)
+			signal.Stop(c)
+
+			return
 		}
-	} else if writeCloser, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+	} else if writeCloser, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666); err != nil {
 		return
 	}
 
 	w := bufio.NewWriter(transform.NewWriter(writeCloser, enc.NewEncoder()))
 	err = fn(w)
-	w.Flush()
 
-	if e := writeCloser.Close(); e != nil && err == nil {
-		err = e
+	if err2 := w.Flush(); err2 != nil && err == nil {
+		err = err2
+	}
+	// Call Sync() on the file to make sure the content is safely on disk.
+	// Does not work with sudo as we don't have direct access to the file.
+	if !withSudo {
+		f := writeCloser.(*os.File)
+		if err2 := f.Sync(); err2 != nil && err == nil {
+			err = err2
+		}
+	}
+	if err2 := writeCloser.Close(); err2 != nil && err == nil {
+		err = err2
 	}
 
 	if withSudo {
 		// wait for dd to finish and restart the screen if we used sudo
 		err := cmd.Wait()
+		screen.TempStart(screenb)
+
+		signal.Notify(util.Sigterm, os.Interrupt)
+		signal.Stop(c)
+
 		if err != nil {
 			return err
 		}
-		screen.TempStart(screenb)
 	}
 
 	return
@@ -82,9 +99,19 @@ func (b *Buffer) Save() error {
 	return b.SaveAs(b.Path)
 }
 
+// AutoSave saves the buffer to its default path
+func (b *Buffer) AutoSave() error {
+	// Doing full b.Modified() check every time would be costly, due to the hash
+	// calculation. So use just isModified even if fastdirty is not set.
+	if !b.isModified {
+		return nil
+	}
+	return b.saveToFile(b.Path, false, true)
+}
+
 // SaveAs saves the buffer to a specified path (filename), creating the file if it does not exist
 func (b *Buffer) SaveAs(filename string) error {
-	return b.saveToFile(filename, false)
+	return b.saveToFile(filename, false, false)
 }
 
 func (b *Buffer) SaveWithSudo() error {
@@ -92,10 +119,10 @@ func (b *Buffer) SaveWithSudo() error {
 }
 
 func (b *Buffer) SaveAsWithSudo(filename string) error {
-	return b.saveToFile(filename, true)
+	return b.saveToFile(filename, true, false)
 }
 
-func (b *Buffer) saveToFile(filename string, withSudo bool) error {
+func (b *Buffer) saveToFile(filename string, withSudo bool, autoSave bool) error {
 	var err error
 	if b.Type.Readonly {
 		return errors.New("Cannot save readonly buffer")
@@ -107,7 +134,7 @@ func (b *Buffer) saveToFile(filename string, withSudo bool) error {
 		return errors.New("Save with sudo not supported on Windows")
 	}
 
-	if b.Settings["rmtrailingws"].(bool) {
+	if !autoSave && b.Settings["rmtrailingws"].(bool) {
 		for i, l := range b.lines {
 			leftover := util.CharacterCount(bytes.TrimRightFunc(l.data, unicode.IsSpace))
 
@@ -205,6 +232,6 @@ func (b *Buffer) saveToFile(filename string, withSudo bool) error {
 	absPath, _ := filepath.Abs(filename)
 	b.AbsPath = absPath
 	b.isModified = false
-	b.UpdateRules()
+	b.ReloadSettings(true)
 	return err
 }

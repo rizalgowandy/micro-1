@@ -16,7 +16,7 @@ Micro will know what to do with it.
 
 You can use Ctrl + arrows to move word by word (Alt + arrows for Mac). Alt + left and right
 move the cursor to the start and end of the line (Ctrl + left/right for Mac), and Ctrl + up and down move the
-cursor the start and end of the buffer.
+cursor to the start and end of the buffer.
 
 You can hold shift with all of these movement actions to select while moving.
 
@@ -30,21 +30,21 @@ following in the `bindings.json` file.
 
 ```json
 {
-	"Ctrl-y": "Undo",
-	"Ctrl-z": "Redo"
+    "Ctrl-y": "Undo",
+    "Ctrl-z": "Redo"
 }
 ```
 
 **Note:** The syntax `<Modifier><key>` is equivalent to `<Modifier>-<key>`. In
-addition, Ctrl-Shift bindings are not supported by terminals, and are the same
-as simply Ctrl bindings. This means that `CtrlG`, `Ctrl-G`, and `Ctrl-g` all
-mean the same thing. However, for Alt this is not the case: `AltG` and `Alt-G`
+addition, `Ctrl-Shift` bindings are not supported by terminals, and are the same
+as simply `Ctrl` bindings. This means that `CtrlG`, `Ctrl-G`, and `Ctrl-g` all
+mean the same thing. However, for `Alt` this is not the case: `AltG` and `Alt-G`
 mean `Alt-Shift-g`, while `Alt-g` does not require the Shift modifier.
 
 In addition to editing your `~/.config/micro/bindings.json`, you can run
 `>bind <keycombo> <action>` For a list of bindable actions, see below.
 
-You can also chain commands when rebinding. For example, if you want Alt-s to
+You can also chain commands when rebinding. For example, if you want `Alt-s` to
 save and quit you can bind it like so:
 
 ```json
@@ -66,7 +66,9 @@ bindings, tab is bound as
 
 This means that if the `Autocomplete` action is successful, the chain will
 abort. Otherwise, it will try `IndentSelection`, and if that fails too, it
-will execute `InsertTab`.
+will execute `InsertTab`. To use `,`, `|` or `&` in an action (as an argument
+to a command, for example), escape it with `\` or wrap it in single or double
+quotes.
 
 ## Binding commands
 
@@ -168,6 +170,9 @@ CursorLeft
 CursorRight
 CursorStart
 CursorEnd
+CursorToViewTop
+CursorToViewCenter
+CursorToViewBottom
 SelectToStart
 SelectToEnd
 SelectUp
@@ -178,12 +183,18 @@ SelectToStartOfText
 SelectToStartOfTextToggle
 WordRight
 WordLeft
+SubWordRight
+SubWordLeft
 SelectWordRight
 SelectWordLeft
+SelectSubWordRight
+SelectSubWordLeft
 MoveLinesUp
 MoveLinesDown
 DeleteWordRight
 DeleteWordLeft
+DeleteSubWordRight
+DeleteSubWordLeft
 SelectLine
 SelectToStartOfLine
 SelectToEndOfLine
@@ -200,6 +211,8 @@ Find
 FindLiteral
 FindNext
 FindPrevious
+DiffPrevious
+DiffNext
 Undo
 Redo
 Copy
@@ -229,10 +242,14 @@ StartOfText
 StartOfTextToggle
 ParagraphPrevious
 ParagraphNext
+SelectToParagraphPrevious
+SelectToParagraphNext
 ToggleHelp
 ToggleDiffGutter
 ToggleRuler
 JumpLine
+ResetSearch
+ClearInfo
 ClearStatus
 ShellMode
 CommandMode
@@ -241,11 +258,15 @@ QuitAll
 AddTab
 PreviousTab
 NextTab
+FirstTab
+LastTab
 NextSplit
 Unsplit
 VSplit
 HSplit
 PreviousSplit
+FirstSplit
+LastSplit
 ToggleMacro
 PlayMacro
 Suspend (Unix only)
@@ -258,6 +279,7 @@ SpawnMultiCursorSelect
 RemoveMultiCursor
 RemoveAllMultiCursors
 SkipMultiCursor
+SkipMultiCursorBack
 None
 JumpToMatchingBrace
 Autocomplete
@@ -265,6 +287,14 @@ Autocomplete
 
 The `StartOfTextToggle` and `SelectToStartOfTextToggle` actions toggle between
 jumping to the start of the text (first) and start of the line.
+
+The `CutLine` action cuts the current line and adds it to the previously cut
+lines in the clipboard since the last paste (rather than just replaces the
+clipboard contents with this line). So you can cut multiple, not necessarily
+consecutive lines to the clipboard just by pressing `Ctrl-k` multiple times,
+without selecting them. If you want the more traditional behavior i.e. just
+rewrite the clipboard every time, you can use `CopyLine,DeleteLine` action
+instead of `CutLine`.
 
 You can also bind some mouse actions (these must be bound to mouse buttons)
 
@@ -407,8 +437,14 @@ mouse actions)
 
 ```
 MouseLeft
+MouseLeftDrag
+MouseLeftRelease
 MouseMiddle
+MouseMiddleDrag
+MouseMiddleRelease
 MouseRight
+MouseRightDrag
+MouseRightRelease
 MouseWheelUp
 MouseWheelDown
 MouseWheelLeft
@@ -461,48 +497,52 @@ conventions for text editing defaults.
     "Alt-{":          "ParagraphPrevious",
     "Alt-}":          "ParagraphNext",
     "Enter":          "InsertNewline",
-    "Ctrl-h":          "Backspace",
+    "Ctrl-h":         "Backspace",
     "Backspace":      "Backspace",
     "Alt-CtrlH":      "DeleteWordLeft",
     "Alt-Backspace":  "DeleteWordLeft",
     "Tab":            "Autocomplete|IndentSelection|InsertTab",
     "Backtab":        "OutdentSelection|OutdentLine",
-    "Ctrl-o":          "OpenFile",
-    "Ctrl-s":          "Save",
-    "Ctrl-f":          "Find",
-    "Alt-F":           "FindLiteral",
-    "Ctrl-n":          "FindNext",
-    "Ctrl-p":          "FindPrevious",
-    "Ctrl-z":          "Undo",
-    "Ctrl-y":          "Redo",
-    "Ctrl-c":          "CopyLine|Copy",
-    "Ctrl-x":          "Cut",
-    "Ctrl-k":          "CutLine",
-    "Ctrl-d":          "DuplicateLine",
-    "Ctrl-v":          "Paste",
-    "Ctrl-a":          "SelectAll",
-    "Ctrl-t":          "AddTab",
-    "Alt-,":           "PreviousTab",
-    "Alt-.":           "NextTab",
+    "Ctrl-o":         "OpenFile",
+    "Ctrl-s":         "Save",
+    "Ctrl-f":         "Find",
+    "Alt-F":          "FindLiteral",
+    "Ctrl-n":         "FindNext",
+    "Ctrl-p":         "FindPrevious",
+    "Alt-[":          "DiffPrevious|CursorStart",
+    "Alt-]":          "DiffNext|CursorEnd",
+    "Ctrl-z":         "Undo",
+    "Ctrl-y":         "Redo",
+    "Ctrl-c":         "Copy|CopyLine",
+    "Ctrl-x":         "Cut|CutLine",
+    "Ctrl-k":         "CutLine",
+    "Ctrl-d":         "Duplicate|DuplicateLine",
+    "Ctrl-v":         "Paste",
+    "Ctrl-a":         "SelectAll",
+    "Ctrl-t":         "AddTab",
+    "Alt-,":          "PreviousTab|LastTab",
+    "Alt-.":          "NextTab|FirstTab",
     "Home":           "StartOfText",
     "End":            "EndOfLine",
     "CtrlHome":       "CursorStart",
     "CtrlEnd":        "CursorEnd",
     "PageUp":         "CursorPageUp",
     "PageDown":       "CursorPageDown",
-    "CtrlPageUp":     "PreviousTab",
-    "CtrlPageDown":   "NextTab",
-    "Ctrl-g":          "ToggleHelp",
+    "CtrlPageUp":     "PreviousTab|LastTab",
+    "CtrlPageDown":   "NextTab|FirstTab",
+    "ShiftPageUp":    "SelectPageUp",
+    "ShiftPageDown":  "SelectPageDown",
+    "Ctrl-g":         "ToggleHelp",
     "Alt-g":          "ToggleKeyMenu",
-    "Ctrl-r":          "ToggleRuler",
-    "Ctrl-l":          "command-edit:goto ",
+    "Ctrl-r":         "ToggleRuler",
+    "Ctrl-l":         "command-edit:goto ",
     "Delete":         "Delete",
-    "Ctrl-b":          "ShellMode",
-    "Ctrl-q":          "Quit",
-    "Ctrl-e":          "CommandMode",
-    "Ctrl-w":          "NextSplit",
-    "Ctrl-u":          "ToggleMacro",
-    "Ctrl-j":          "PlayMacro",
+    "Ctrl-b":         "ShellMode",
+    "Ctrl-q":         "Quit",
+    "Ctrl-e":         "CommandMode",
+    "Ctrl-w":         "NextSplit|FirstSplit",
+    "Ctrl-u":         "ToggleMacro",
+    "Ctrl-j":         "PlayMacro",
     "Insert":         "ToggleOverwriteMode",
 
     // Emacs-style keybindings
@@ -520,12 +560,15 @@ conventions for text editing defaults.
     "Esc": "Escape",
 
     // Mouse bindings
-    "MouseWheelUp":   "ScrollUp",
-    "MouseWheelDown": "ScrollDown",
-    "MouseLeft":      "MousePress",
-    "MouseMiddle":    "PastePrimary",
-    "Ctrl-MouseLeft": "MouseMultiCursor",
+    "MouseWheelUp":     "ScrollUp",
+    "MouseWheelDown":   "ScrollDown",
+    "MouseLeft":        "MousePress",
+    "MouseLeftDrag":    "MouseDrag",
+    "MouseLeftRelease": "MouseRelease",
+    "MouseMiddle":      "PastePrimary",
+    "Ctrl-MouseLeft":   "MouseMultiCursor",
 
+    // Multi-cursor bindings
     "Alt-n":        "SpawnMultiCursor",
     "AltShiftUp":   "SpawnMultiCursorUp",
     "AltShiftDown": "SpawnMultiCursorDown",
@@ -596,8 +639,8 @@ are given below:
         "Backtab":        "CycleAutocompleteBack",
         "Ctrl-z":         "Undo",
         "Ctrl-y":         "Redo",
-        "Ctrl-c":         "CopyLine|Copy",
-        "Ctrl-x":         "Cut",
+        "Ctrl-c":         "Copy|CopyLine",
+        "Ctrl-x":         "Cut|CutLine",
         "Ctrl-k":         "CutLine",
         "Ctrl-v":         "Paste",
         "Home":           "StartOfTextToggle",
@@ -629,10 +672,12 @@ are given below:
         "Esc": "AbortCommand",
 
         // Mouse bindings
-        "MouseWheelUp":   "HistoryUp",
-        "MouseWheelDown": "HistoryDown",
-        "MouseLeft":      "MousePress",
-        "MouseMiddle":    "PastePrimary"
+        "MouseWheelUp":     "HistoryUp",
+        "MouseWheelDown":   "HistoryDown",
+        "MouseLeft":        "MousePress",
+        "MouseLeftDrag":    "MouseDrag",
+        "MouseLeftRelease": "MouseRelease",
+        "MouseMiddle":      "PastePrimary"
     }
 }
 ```

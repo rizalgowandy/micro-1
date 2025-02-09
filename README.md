@@ -1,6 +1,6 @@
 <img alt="micro logo" src="./assets/micro-logo-drop.svg" width="500px"/>
 
-[![Build Status](https://travis-ci.org/zyedidia/micro.svg?branch=master)](https://travis-ci.org/zyedidia/micro)
+![Test Workflow](https://github.com/zyedidia/micro/actions/workflows/test.yaml/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zyedidia/micro)](https://goreportcard.com/report/github.com/zyedidia/micro)
 [![Release](https://img.shields.io/github/release/zyedidia/micro.svg?label=Release)](https://github.com/zyedidia/micro/releases)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/zyedidia/micro/blob/master/LICENSE)
@@ -18,24 +18,8 @@ Here is a picture of micro editing its source code.
 ![Screenshot](./assets/micro-solarized.png)
 
 To see more screenshots of micro, showcasing some of the default color schemes, see [here](https://micro-editor.github.io).
- 
+
 You can also check out the website for Micro at https://micro-editor.github.io.
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-  - [Prebuilt binaries](#pre-built-binaries)
-  - [Package Managers](#package-managers)
-  - [Building from source](#building-from-source)
-  - [Fully static binary](#fully-static-binary)
-  - [macOS terminal](#macos-terminal)
-  - [Linux clipboard support](#linux-clipboard-support)
-  - [Colors and syntax highlighting](#colors-and-syntax-highlighting)
-  - [Cygwin, Mingw, Plan9](#cygwin-mingw-plan9)
-- [Usage](#usage)
-- [Documentation and Help](#documentation-and-help)
-- [Contributing](#contributing)
 
 - - -
 
@@ -53,7 +37,7 @@ You can also check out the website for Micro at https://micro-editor.github.io.
 - Extremely good mouse support.
   - This means mouse dragging to create a selection, double click to select by word, and triple click to select by line.
 - Cross-platform (it should work on all the platforms Go runs on).
-  - Note that while Windows is supported Mingw/Cygwin is not (see below).
+  - Note that while Windows is supported, Mingw/Cygwin is not (see below).
 - Plugin system (plugins are written in Lua).
   - micro has a built-in plugin manager to automatically install, remove, and update plugins.
 - Built-in diff gutter.
@@ -68,6 +52,7 @@ You can also check out the website for Micro at https://micro-editor.github.io.
 - Small and simple.
 - Easily configurable.
 - Macros.
+- Smart highlighting of trailing whitespace and tab vs space errors.
 - Common editor features such as undo/redo, line numbers, Unicode support, soft wrapping, …
 
 ## Installation
@@ -83,11 +68,11 @@ A desktop entry file and man page can be found in the [assets/packaging](https:/
 
 ### Pre-built binaries
 
-Pre-built binaries are distributed with [releases](https://github.com/zyedidia/micro/releases).
+Pre-built binaries are distributed in [releases](https://github.com/zyedidia/micro/releases).
 
 To uninstall micro, simply remove the binary, and the configuration directory at `~/.config/micro`.
 
-#### Quick-install script
+#### Third-party quick-install script
 
 ```bash
 curl https://getmic.ro | bash
@@ -132,35 +117,44 @@ On Linux, you can install micro through [snap](https://snapcraft.io/docs/core/in
 snap install micro --classic
 ```
 
-Micro is also available through other package managers on Linux such dnf, AUR, Nix, and package managers
+Micro is also available through other package managers on Linux such as dnf, AUR, Nix, and package managers
 for other operating systems. These packages are not guaranteed to be up-to-date.
 
 <!-- * `apt install micro` (Ubuntu 20.04 `focal`, and Debian `unstable | testing | buster-backports`). At the moment, this package (2.0.1-1) is outdated and has a known bug where debug mode is enabled. -->
 
-* Linux: Available in distro-specific package managers.
-    * `dnf install micro` (Fedora).
-    * `apt install micro` (Ubuntu and Debian).
-    * `pacman -S micro` (Arch Linux).
-    * `emerge app-editors/micro` (Gentoo).
-    * `zypper install micro-editor` (SUSE)
-    * `eopkg install micro` (Solus).
-    * `pacstall -I micro` (Pacstall).
-    * See [wiki](https://github.com/zyedidia/micro/wiki/Installing-Micro) for details about CRUX, Termux.
-* Windows: [Chocolatey](https://chocolatey.org) and [Scoop](https://github.com/lukesampson/scoop).
+* Linux:
+    * distro-specific package managers:
+        * `dnf install micro` (Fedora).
+        * `apt install micro` (Ubuntu and Debian).
+        * `pacman -S micro` (Arch Linux).
+        * `emerge app-editors/micro` (Gentoo).
+        * `zypper install micro-editor` (SUSE)
+        * `eopkg install micro` (Solus).
+        * `pacstall -I micro` (Pacstall).
+        * `apt-get install micro` (ALT Linux)
+        * See [wiki](https://github.com/zyedidia/micro/wiki/Installing-Micro) for details about CRUX, Termux.
+    * distro-agnostic package managers:
+        * `nix profile install nixpkgs#micro` (with [Nix](https://nixos.org/) and flakes enabled)
+        * `flox install micro` (with [Flox](https://flox.dev))
+* Windows: [Chocolatey](https://chocolatey.org), [Scoop](https://scoop.sh/) and [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
     * `choco install micro`.
     * `scoop install micro`.
+    * `winget install zyedidia.micro`
 * OpenBSD: Available in the ports tree and also available as a binary package.
-    * `pkd_add -v micro`.
+    * `pkg_add -v micro`.
 * NetBSD, macOS, Linux, Illumos, etc. with [pkgsrc](http://www.pkgsrc.org/)-current:
     * `pkg_add micro`
-* macOS with [MacPorts](https://www.macports.org):
-    * `sudo port install micro`
+* macOS: Available in package managers.
+    * `sudo port install micro` (with [MacPorts](https://www.macports.org))
+    * `brew install micro` (with [Homebrew](https://brew.sh/))
+    * `nix profile install nixpkgs#micro` (with [Nix](https://nixos.org/) and flakes enabled)
+    * `flox install micro` (with [Flox](https://flox.dev))
 
 **Note for Linux desktop environments:**
 
 For interfacing with the local system clipboard, the following tools need to be installed:
-* For X11 `xclip` or `xsel`
-* For [Wayland](https://wayland.freedesktop.org/) `wl-clipboard`
+* For X11, `xclip` or `xsel`
+* For [Wayland](https://wayland.freedesktop.org/), `wl-clipboard`
 
 Without these tools installed, micro will use an internal clipboard for copy and paste, but it won't be accessible to external applications.
 
@@ -168,7 +162,7 @@ Without these tools installed, micro will use an internal clipboard for copy and
 
 If your operating system does not have a binary release, but does run Go, you can build from source.
 
-Make sure that you have Go version 1.16 or greater and Go modules are enabled.
+Make sure that you have Go version 1.19 or greater and Go modules are enabled.
 
 ```
 git clone https://github.com/zyedidia/micro
@@ -186,15 +180,19 @@ You can install directly with `go get` (`go get github.com/zyedidia/micro/cmd/mi
 recommended because it doesn't build micro with version information (necessary for the plugin manager),
 and doesn't disable debug mode.
 
-### Fully static binary
+### Fully static or dynamically linked binary
 
-By default, the micro binary will dynamically link with core system libraries (this is generally
-recommended for security and portability). However, there is a fully static prebuilt binary that
-is provided for amd64 as `linux-static.tar.gz`, and to build a fully static binary from source, run
+By default, the micro binary is linked statically to increase the portability of the prebuilt binaries.
+This behavior can simply be overriden by providing `CGO_ENABLED=1` to the build target.
 
 ```
-CGO_ENABLED=0 make build
+CGO_ENABLED=1 make build
 ```
+
+Afterwards the micro binary will dynamically link with the present core system libraries.
+
+**Note for Mac:**
+Native macOS builds are done with `CGO_ENABLED=1` forced set to support adding the "Information Property List" in the linker step.
 
 ### macOS terminal
 
@@ -221,7 +219,7 @@ If you open micro and it doesn't seem like syntax highlighting is working, this 
 you are using a terminal which does not support 256 color mode. Try changing the color scheme to `simple`
 by pressing <kbd>Ctrl-e</kbd> in micro and typing `set colorscheme simple`.
 
-If you are using the default Ubuntu terminal, to enable 256 make sure your `TERM` variable is set
+If you are using the default Ubuntu terminal, to enable 256 color mode make sure your `TERM` variable is set
 to `xterm-256color`.
 
 Many of the Windows terminals don't support more than 16 colors, which means
@@ -240,7 +238,7 @@ winpty micro.exe ...
 
 Micro uses the amazing [tcell library](https://github.com/gdamore/tcell), but this
 means that micro is restricted to the platforms tcell supports. As a result, micro does not support
-Plan9, and Cygwin (although this may change in the future). Micro also doesn't support NaCl (which is deprecated anyway).
+Plan9 or Cygwin (although this may change in the future). Micro also doesn't support NaCl (which is deprecated anyway).
 
 ## Usage
 
